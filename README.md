@@ -1,6 +1,10 @@
 # plume-checker
-modify this
+using python
 
-    with ThreadPoolExecutor(max_workers=20) as executor:
+if error 
+install
 
-if api is error
+pip install requests
+
+to run
+python index.py
