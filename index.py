@@ -1,10 +1,8 @@
 import requests
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 def check_plume_status(wallet_address):
     url = f"https://claim-api.plumenetwork.xyz/airdrop/credentials?walletAddress={wallet_address}"
-
+    
     headers = {
         "accept": "application/json, text/plain, */*",
         "accept-encoding": "gzip, deflate, br, zstd",
@@ -23,9 +21,9 @@ def check_plume_status(wallet_address):
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()  # Raise an error for HTTP errors
-
+        
         data = response.json()
         return {
             'tokenQualified': data.get('tokenQualified', ''),
@@ -35,41 +33,35 @@ def check_plume_status(wallet_address):
         print(f"An error occurred: {e}")
         return None
 
-def read_wallets(file_path):
+def check_wallets_from_file(file_path):
     try:
         with open(file_path, "r") as file:
-            return [line.strip() for line in file if line.strip()]
+            wallets = [line.strip() for line in file if line.strip()]
+
+        results = {}
+        qualified_wallets = []
+        for wallet in wallets:
+            print(f"Checking wallet: {wallet}")
+            data = check_plume_status(wallet)
+            if data and int(data.get('tokenQualified', 0)) > 0:
+                qualified_wallets.append(wallet)
+            results[wallet] = data
+
+        # Save qualified wallets to a file
+        with open("qualified_wallets.txt", "w") as outfile:
+            outfile.write("\n".join(qualified_wallets))
+
+        return results
     except FileNotFoundError:
         print(f"File not found: {file_path}")
-        return []
+        return None
 
-def process_wallet(wallet, output_file):
-    data = check_plume_status(wallet)
-    if data and int(data.get('tokenQualified', 0)) > 0:
-        with threading.Lock():
-            with open(output_file, "a") as file:
-                file.write(f"{wallet}, Token Qualified: {data['tokenQualified']}, Claim Data: {data['claimData']}\n")
+# Ganti dengan path ke file txt yang berisi wallet address
+file_path = "wallets.txt"
+results = check_wallets_from_file(file_path)
 
-def main():
-    input_file = "wallets.txt"
-    output_file = "qualified_wallets.txt"
-    wallets = read_wallets(input_file)
-
-    if not wallets:
-        print("No wallets to process.")
-        return
-
-    open(output_file, "w").close()  # Clear the output file before use
-
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        futures = {executor.submit(process_wallet, wallet, output_file): wallet for wallet in wallets}
-
-        for future in as_completed(futures):
-            wallet = futures[future]
-            try:
-                future.result()
-            except Exception as e:
-                print(f"An error occurred while processing wallet {wallet}: {e}")
-
-if __name__ == "__main__":
-    main()
+if results:
+    for wallet, data in results.items():
+        print(f"Wallet: {wallet}\nToken Qualified: {data.get('tokenQualified', 'N/A')}\nClaim Data: {data.get('claimData', 'N/A')}\n")
+else:
+    print("No results to display.")
